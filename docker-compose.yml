@@ -1,0 +1,52 @@
+version: '3'
+services:
+  nginx:
+    restart: unless-stopped
+    build:
+      context: services/nginx
+    ports:
+      - "8980:8080"
+    depends_on:
+      - genomenexus
+    networks:
+      - nginx_net
+      - genomenexus_net
+  genomenexus:
+    build:
+      context: services/genomenexus
+    environment:
+      - SERVER_PORT=8888
+    restart: unless-stopped
+    depends_on:
+      - mongo
+      - ensembl-rest
+    command: "-Dspring.data.mongodb.uri=mongodb://mongo:27017/annotator -Dvep.url=http://ensembl-rest:3000/vep/human/hgvs/VARIANT?content-type=application/json&xref_refseq=1&ccds=1&canonical=1&domains=1&hgvs=1&numbers=1&protein=1 -Dgenexrefs.url=http://ensembl-rest:3000/xrefs/id/ACCESSION?content-type=application/json -jar /app/genome-nexus.war"
+    networks:
+      - genomenexus_net
+  mongo:
+    build: https://github.com/genome-nexus/genome-nexus-importer.git
+    environment:
+      - REF_ENSEMBL_VERSION=grch37_ensembl92
+      - SPECIES=homo_sapiens
+    restart: unless-stopped
+    networks:
+      - genomenexus_net
+  ensembl-rest:
+    build:
+      context: services/ensembl-rest
+    restart: unless-stopped
+    volumes:
+      - ./ensembl_rest.conf:/opt/vep/src/ensembl-rest/ensembl_rest.conf
+    networks:
+      - genomenexus_net
+  ensembl-mysql:
+    build:
+      context: services/ensembl-mysql
+    restart: unless-stopped
+    networks:
+      - genomenexus_net
+networks:
+  nginx_net:
+  genomenexus_net:
+    driver: bridge
+    internal: true
